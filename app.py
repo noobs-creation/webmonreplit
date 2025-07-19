@@ -1,28 +1,32 @@
 # app.py
 # This Flask application provides a basic web interface for the monitoring system.
-# The actual monitoring logic runs in monitor.py as an Always-on task.
+# The actual monitoring logic runs in monitor.py as a separate process/thread.
 
 import os
+import subprocess
+import sys
 from flask import Flask, render_template_string, jsonify
+from threading import Thread
+import time
+
+# Import the keep_alive function from our new file
+from keep_alive import keep_alive
 
 app = Flask(__name__)
 
 # --- Configuration ---
-# It's highly recommended to set these as environment variables on PythonAnywhere.
+# On Replit, you should set these as "Secrets" in the Repl's "Secrets" tab.
 # For local testing, you can uncomment and set them here, but DO NOT commit sensitive info.
-# app.config['WEBSITE_URL'] = os.environ.get('WEBSITE_URL', 'https://www.barodasuntechnologies.com')
-# app.config['SENDER_EMAIL'] = os.environ.get('SENDER_EMAIL', 'barodasuntech@gmail.com')
-# app.config['SENDER_PASSWORD'] = os.environ.get('SENDER_PASSWORD', 'Baroda@2025')
-# app.config['RECEIVER_EMAIL'] = os.environ.get('RECEIVER_EMAIL', 'siddhanth.bob@gmail.com')
+# app.config['WEBSITE_URL'] = os.environ.get('WEBSITE_URL', 'https://www.example.com')
+# app.config['SENDER_EMAIL'] = os.environ.get('SENDER_EMAIL', 'your_sender_email@example.com')
+# app.config['SENDER_PASSWORD'] = os.environ.get('SENDER_PASSWORD', 'your_email_app_password')
+# app.config['RECEIVER_EMAIL'] = os.environ.get('RECEIVER_EMAIL', 'your_receiver_email@example.com')
 
 # Basic check to ensure essential environment variables are set
+# Replit's "Secrets" are accessed via os.environ
 if not all(os.environ.get(var) for var in ['WEBSITE_URL', 'SENDER_EMAIL', 'SENDER_PASSWORD', 'RECEIVER_EMAIL']):
     print("WARNING: Essential environment variables (WEBSITE_URL, SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL) are not set.")
-    print("Please set them on PythonAnywhere or in your local environment.")
-
-# Simple in-memory status storage for the web app (monitor.py updates a file)
-# In a real-world scenario, you might use a small database or file to share status.
-# For this example, the web app just displays a static message or reads from a simple status file.
+    print("Please set them as 'Secrets' in your Replit project.")
 
 # HTML template for the main page
 HTML_TEMPLATE = """
@@ -55,8 +59,8 @@ HTML_TEMPLATE = """
         </p>
         <div class="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 rounded-md" role="alert">
             <p class="font-bold">Note:</p>
-            <p>The core monitoring logic runs as an "Always-on task" on PythonAnywhere, separate from this web interface.</p>
-            <p>Check your email for real-time alerts.</p>
+            <p>The core monitoring logic runs in the background within this Repl.</p>
+            <p>This web interface helps keep the Repl active. Check your email for real-time alerts.</p>
         </div>
     </div>
 </body>
@@ -81,7 +85,30 @@ def status():
     """
     return jsonify({"status": "monitoring_active", "message": "Check monitor.py logs for detailed status."})
 
+def run_monitor_script():
+    """
+    Function to run the monitor.py script in a separate process.
+    This ensures it runs continuously in the background.
+    """
+    print("Starting monitor.py in a separate process...")
+    try:
+        # Use sys.executable to ensure the correct Python interpreter is used
+        # Use Popen to run it non-blocking
+        subprocess.Popen([sys.executable, 'monitor.py'])
+        print("monitor.py process started.")
+    except Exception as e:
+        print(f"Failed to start monitor.py: {e}")
+
 if __name__ == '__main__':
-    # For local development, run: python app.py
-    # On PythonAnywhere, this will be handled by the WSGI file.
-    app.run(debug=True)
+    # Start the keep-alive server in a separate thread
+    keep_alive()
+    print("Keep-alive server started.")
+
+    # Start the monitoring script in a separate process
+    # Give the keep-alive server a moment to start up
+    time.sleep(2)
+    run_monitor_script()
+
+    # Run the main Flask app
+    # Replit automatically runs Flask apps on 0.0.0.0:8080
+    app.run(host='0.0.0.0', port=8080)
